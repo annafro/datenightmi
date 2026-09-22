@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>letter.txt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=VT323&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    overflow-x: hidden;
+    overscroll-behavior: none;
+    width: 100%;
+    min-height: 100%;
+  }
+
+  body {
+    font-family: 'IBM Plex Mono', monospace;
+    background: #050403;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffb757;
+    padding: 16px;
+    position: relative;
+  }
+
+  /* CRT scan lines */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0,0,0,0) 0px,
+      rgba(0,0,0,0) 2px,
+      rgba(255,183,87,0.03) 2px,
+      rgba(255,183,87,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  /* CRT vignette */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%);
+    pointer-events: none;
+    z-index: 99;
+  }
+
+  /* Terminal Window */
+  .terminal {
+    width: 100%;
+    max-width: 520px;
+    background: #0a0806;
+    border: 1px solid #3d2f1a;
+    border-radius: 8px;
+    box-shadow:
+      0 0 40px rgba(255, 183, 87, 0.15),
+      0 0 80px rgba(255, 100, 100, 0.05),
+      inset 0 0 60px rgba(255, 183, 87, 0.02);
+    overflow: hidden;
+    position: relative;
+    z-index: 10;
+    animation: bootUp 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  @keyframes bootUp {
+    from { opacity: 0; transform: scale(0.92); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  /* Title bar */
+  .titlebar {
+    background: linear-gradient(180deg, #1a1410, #0d0908);
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid #3d2f1a;
+  }
+
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #4d3820;
+  }
+
+  .dot.red { background: #ff5f56; }
+  .dot.yellow { background: #ffbd2e; }
+  .dot.green { background: #27c93f; }
+
+  .filename {
+    margin-left: 12px;
+    color: #8b6f47;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+  }
+
+  /* Terminal body */
+  .terminal-body {
+    padding: 24px 20px;
+    min-height: 400px;
+    font-size: 14px;
+    line-height: 1.7;
+    color: #ffb757;
+    text-shadow: 0 0 8px rgba(255, 183, 87, 0.4);
+  }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* Boot lines */
+  .boot-line {
+    color: #6e5a3a;
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+
+  .boot-line .ok { color: #7fd88f; }
+
+  .separator {
+    color: #4d3820;
+    margin: 12px 0;
+  }
+
+  /* Letter body */
+  .letter {
+    color: #ffd580;
+    text-shadow: 0 0 8px rgba(255, 213, 128, 0.5);
+    white-space: pre-wrap;
+    min-height: 200px;
+  }
+
+  .letter .accent {
+    color: #ff7b72;
+    text-shadow: 0 0 10px rgba(255, 123, 114, 0.6);
+  }
+
+  /* Blinking cursor */
+  .cursor {
+    display: inline-block;
+    width: 9px;
+    height: 16px;
+    background: #ffb757;
+    box-shadow: 0 0 8px rgba(255, 183, 87, 0.6);
+    vertical-align: text-bottom;
+    animation: blink 1s step-end infinite;
+    margin-left: 2px;
+  }
+
+  @keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+  }
+
+  /* Prompt buttons */
+  .prompts {
+    margin-top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  }
+
+  .prompts.show {
+    opacity: 1;
+  }
+
+  .prompt-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    background: transparent;
+    border: 1px solid #6e5a3a;
+    color: #ffb757;
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    text-shadow: 0 0 6px rgba(255, 183, 87, 0.4);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .prompt-btn:hover, .prompt-btn:active {
+    border-color: #ffb757;
+    background: rgba(255, 183, 87, 0.08);
+    box-shadow: 0 0 12px rgba(255, 183, 87, 0.2);
+    transform: translateX(4px);
+  }
+
+  .prompt-btn.yes {
+    border-color: #7fd88f;
+    color: #7fd88f;
+    text-shadow: 0 0 6px rgba(127, 216, 143, 0.4);
+  }
+
+  .prompt-btn.yes:hover, .prompt-btn.yes:active {
+    background: rgba(127, 216, 143, 0.08);
+    box-shadow: 0 0 12px rgba(127, 216, 143, 0.3);
+  }
+
+  .prompt-btn.no {
+    border-color: #ff7b72;
+    color: #ff7b72;
+    text-shadow: 0 0 6px rgba(255, 123, 114, 0.4);
+  }
+
+  .prompt-btn.no:hover, .prompt-btn.no:active {
+    background: rgba(255, 123, 114, 0.08);
+  }
+
+  /* Error messages */
+  .error-log {
+    margin-top: 12px;
+    color: #ff7b72;
+    font-size: 12px;
+    text-shadow: 0 0 6px rgba(255, 123, 114, 0.4);
+    min-height: 20px;
+  }
+
+  .error-log .err-line {
+    animation: glitchIn 0.3s ease both;
+  }
+
+  @keyframes glitchIn {
+    0% { opacity: 0; transform: translateX(-4px); }
+    50% { opacity: 1; transform: translateX(2px); }
+    100% { opacity: 1; transform: translateX(0); }
+  }
+
+  /* ASCII Art */
+  .ascii {
+    font-family: 'VT323', monospace;
+    font-size: 20px;
+    line-height: 1;
+    color: #ff7b72;
+    text-shadow: 0 0 12px rgba(255, 123, 114, 0.6);
+    white-space: pre;
+    margin: 16px 0;
+    text-align: center;
+  }
+
+  .ascii.big {
+    font-size: 24px;
+  }
+
+  /* Save the Date box */
+  .save-the-date {
+    border: 1px solid #ffb757;
+    padding: 20px;
+    margin: 20px 0;
+    text-align: center;
+    background: rgba(255, 183, 87, 0.03);
+    box-shadow: inset 0 0 20px rgba(255, 183, 87, 0.05);
+  }
+
+  .save-the-date .label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: #8b6f47;
+    margin-bottom: 12px;
+  }
+
+  .save-the-date .date {
+    font-family: 'VT323', monospace;
+    font-size: 32px;
+    color: #ffd580;
+    text-shadow: 0 0 12px rgba(255, 213, 128, 0.6);
+    line-height: 1.2;
+  }
+
+  /* Section headline (typewriter big) */
+  .headline {
+    font-family: 'VT323', monospace;
+    font-size: 28px;
+    line-height: 1.1;
+    color: #ff7b72;
+    text-shadow: 0 0 12px rgba(255, 123, 114, 0.6);
+    margin: 8px 0 16px;
+    letter-spacing: 1px;
+  }
+
+  .headline.small { font-size: 22px; }
+
+  .subtext {
+    color: #8b6f47;
+    font-size: 12px;
+    margin-bottom: 14px;
+    letter-spacing: 0.5px;
+  }
+
+  /* Choice buttons (multi-line) */
+  .choice-btn {
+    display: block;
+    width: 100%;
+    font-family: 'IBM Plex Mono', monospace;
+    background: transparent;
+    border: 1px solid #6e5a3a;
+    color: #ffb757;
+    padding: 14px 16px;
+    text-align: left;
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: 4px;
+    margin-bottom: 12px;
+    line-height: 1.5;
+    transition: all 0.2s ease;
+    text-shadow: 0 0 6px rgba(255, 183, 87, 0.4);
+  }
+
+  .choice-btn:hover, .choice-btn:active {
+    border-color: #ffb757;
+    background: rgba(255, 183, 87, 0.08);
+    box-shadow: 0 0 12px rgba(255, 183, 87, 0.2);
+  }
+
+  .choice-btn .num {
+    color: #ff7b72;
+    font-weight: 600;
+  }
+
+  .choice-btn .label {
+    color: #ffd580;
+    font-weight: 600;
+    display: block;
+    margin-top: 2px;
+  }
+
+  .choice-btn .desc {
+    color: #8b6f47;
+    font-size: 11px;
+    margin-top: 4px;
+    display: block;
+    padding-left: 16px;
+  }
+
+  /* Final message */
+  .final-msg {
+    padding: 16px;
+    border: 1px dashed #6e5a3a;
+    margin: 16px 0;
+    color: #ffd580;
+    font-size: 13px;
+    line-height: 1.7;
+    text-shadow: 0 0 6px rgba(255, 213, 128, 0.4);
+  }
+
+  .final-msg .accent {
+    color: #ff7b72;
+    font-weight: 600;
+  }
+
+  .send-btn {
+    width: 100%;
+    font-family: 'IBM Plex Mono', monospace;
+    background: transparent;
+    border: 1px solid #7fd88f;
+    color: #7fd88f;
+    padding: 14px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    text-shadow: 0 0 6px rgba(127, 216, 143, 0.4);
+    letter-spacing: 1px;
+  }
+
+  .send-btn:hover, .send-btn:active {
+    background: rgba(127, 216, 143, 0.1);
+    box-shadow: 0 0 16px rgba(127, 216, 143, 0.3);
+  }
+
+  @media (max-width: 420px) {
+    .terminal-body { padding: 20px 16px; font-size: 13px; }
+    .ascii { font-size: 16px; }
+    .ascii.big { font-size: 20px; }
+    .headline { font-size: 24px; }
+    .headline.small { font-size: 18px; }
+    .save-the-date .date { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="terminal">
+  <div class="titlebar">
+    <div class="dot red"></div>
+    <div class="dot yellow"></div>
+    <div class="dot green"></div>
+    <div class="filename">~/anna/letter_to_mausbaer.txt</div>
+  </div>
+
+  <div class="terminal-body">
+
+    <!-- Screen 1: Boot + Letter -->
+    <div class="screen active" id="screen-1">
+      <div id="boot-lines"></div>
+      <div id="letter-content" class="letter"></div>
+      <div class="error-log" id="errorLog"></div>
+      <div class="prompts" id="prompts">
+        <button class="prompt-btn yes" onclick="sayYes()">&gt; [y] ja &lt;3</button>
+        <button class="prompt-btn no" id="noBtn">&gt; [n] nein</button>
+      </div>
+    </div>
+
+    <!-- Screen 2: Happiest Wife -->
+    <div class="screen" id="screen-2">
+      <div class="boot-line">&gt; response accepted <span class="ok">[OK]</span></div>
+      <div class="boot-line">&gt; loading emotion.exe...</div>
+      <div class="boot-line">&gt; overflow detected in heart_module</div>
+      <div class="separator">─────────────────────────────</div>
+      <div class="ascii big" id="ascii-2"></div>
+      <div class="headline" id="hl-2"></div>
+      <div class="subtext" id="sub-2"></div>
+      <div class="prompts" id="prompts-2">
+        <button class="prompt-btn" onclick="showInvitation()">&gt; continue →</button>
+      </div>
+    </div>
+
+    <!-- Screen 3: Save the date -->
+    <div class="screen" id="screen-3">
+      <div class="boot-line">&gt; opening calendar.sys...</div>
+      <div class="boot-line">&gt; date reserved <span class="ok">[OK]</span></div>
+      <div class="separator">─────────────────────────────</div>
+      <div class="headline small" id="hl-3"></div>
+      <div class="save-the-date" id="std-box" style="display:none;">
+        <div class="label">— SAVE THE DATE —</div>
+        <div class="date">MITTWOCH<br>23.09.2026</div>
+      </div>
+      <div class="prompts" id="prompts-3">
+        <button class="prompt-btn" onclick="showLocation()">&gt; where to? →</button>
+      </div>
+    </div>
+
+    <!-- Screen 4: You choose -->
+    <div class="screen" id="screen-4">
+      <div class="boot-line">&gt; select date location:</div>
+      <div class="separator">─────────────────────────────</div>
+      <div class="headline small" id="hl-4"></div>
+      <div id="choices-4" style="display:none;">
+        <button class="choice-btn" onclick="pickUzun()">
+          <span class="num">[1]</span> <span class="label">UZUN — Monnem</span>
+          <span class="desc">└─ craving since forever</span>
+        </button>
+        <button class="choice-btn" onclick="pickMalaTang()">
+          <span class="num">[2]</span> <span class="label">MALA TANG — Karlsruhe</span>
+          <span class="desc">└─ Karlsruher Feierabendsuppendate</span>
+          <span class="desc">└─ so schwer du willst 🌶</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Screen 5a: Mala Tang -->
+    <div class="screen" id="screen-mala">
+      <div class="boot-line">&gt; location: mala_tang.confirmed <span class="ok">[OK]</span></div>
+      <div class="separator">─────────────────────────────</div>
+      <div class="ascii" id="ascii-mala"></div>
+      <div class="headline" id="hl-mala"></div>
+      <div class="subtext" id="sub-mala"></div>
+      <div class="final-msg" id="msg-mala" style="display:none;">
+        &gt; date: <span class="accent">Mittwoch, 23. September</span><br>
+        &gt; location: <span class="accent">Mala Tang</span><br>
+        &gt; spice_level: <span class="accent">so schwer du willst</span><br>
+        <br>
+        &gt; ich freu mich so auf dich &lt;3<br>
+        &gt; ich liebe dich Mausbär<br>
+        <br>
+        &gt; sent with love from<br>
+        &gt; <span class="accent">Anna</span>
+      </div>
+      <button class="send-btn" id="send-mala" style="display:none;" onclick="sendMailMala()">
+        [ SEND CONFIRMATION ]
+      </button>
+    </div>
+
+    <!-- Screen 5b: Uzun with Grünes question -->
+    <div class="screen" id="screen-uzun">
+      <div class="boot-line">&gt; location: uzun.confirmed <span class="ok">[OK]</span></div>
+      <div class="boot-line">&gt; incoming request from user: <span style="color:#7fd88f;">Grünes</span></div>
+      <div class="separator">─────────────────────────────</div>
+      <div class="headline small" id="hl-uzun"></div>
+      <div class="subtext" id="sub-uzun"></div>
+      <div class="prompts" id="prompts-uzun">
+        <button class="prompt-btn yes" onclick="uzunWithGruenes()">&gt; [y] sweethearts trio</button>
+        <button class="prompt-btn" onclick="uzunAlone()">&gt; [n] nur wir zwei</button>
+      </div>
+    </div>
+
+    <!-- Screen 6a: Uzun alone -->
+    <div class="screen" id="screen-uzun-alone">
+      <div class="boot-line">&gt; guest list finalized <span class="ok">[OK]</span></div>
+      <div class="separator">─────────────────────────────</div>
+      <div class="ascii" id="ascii-alone"></div>
+      <div class="headline" id="hl-alone"></div>
+      <div class="subtext" id="sub-alone"></div>
+      <div class="final-msg" id="msg-alone" style="display:none;">
+        &gt; date: <span class="accent">Mittwoch, 23. September</span><br>
+        &gt; location: <span class="accent">Uzun (Monnem)</span><br>
+        &gt; guests: <span class="accent">just us two sweethearts</span><br>
+        <br>
+        &gt; ich freu mich so auf dich &lt;3<br>
+        &gt; ich liebe dich Mausbär<br>
+        <br>
+        &gt; sent with love from<br>
+        &gt; <span class="accent">Anna</span>
+      </div>
+      <button class="send-btn" id="send-alone" style="display:none;" onclick="sendMailUzunAlone()">
+        [ SEND CONFIRMATION ]
+      </button>
+    </div>
+
+    <!-- Screen 6b: Uzun with Grünes -->
+    <div class="screen" id="screen-uzun-gruenes">
+      <div class="boot-line">&gt; guest list: <span class="ok">us + Grünes</span></div>
+      <div class="boot-line">&gt; Anna slides into DMs...</div>
+      <div class="separator">─────────────────────────────</div>
+      <div class="ascii" id="ascii-trio"></div>
+      <div class="headline" id="hl-trio"></div>
+      <div class="subtext" id="sub-trio"></div>
+      <div class="final-msg" id="msg-trio" style="display:none;">
+        &gt; date: <span class="accent">Mittwoch, 23. September</span><br>
+        &gt; location: <span class="accent">Uzun (Monnem)</span><br>
+        &gt; guests: <span class="accent">us three sweethearts (mit Grünes)</span><br>
+        <br>
+        &gt; ich slide in seine DMs &lt;3<br>
+        &gt; ich freu mich so auf dich &lt;3<br>
+        &gt; ich liebe dich Mausbär<br>
+        <br>
+        &gt; sent with love from<br>
+        &gt; <span class="accent">Anna</span>
+      </div>
+      <button class="send-btn" id="send-trio" style="display:none;" onclick="sendMailUzunGruenes()">
+        [ SEND CONFIRMATION ]
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  // Typing effect
+  async function typeInto(el, text, speed = 25) {
+    for (let i = 0; i < text.length; i++) {
+      el.innerHTML += text[i] === '\n' ? '<br>' : text[i];
+      // Speed variation for realism
+      const delay = text[i] === ' ' ? speed * 0.5 : speed + (Math.random() * 20 - 10);
+      await sleep(delay);
+    }
+  }
+
+  async function typeBootLine(container, text, delay = 300) {
+    const line = document.createElement('div');
+    line.className = 'boot-line';
+    container.appendChild(line);
+    await typeInto(line, text, 15);
+    await sleep(delay);
+    return line;
+  }
+
+  // === Screen 1: Boot + Letter ===
+  async function runScreen1() {
+    const bootContainer = document.getElementById('boot-lines');
+
+    await typeBootLine(bootContainer, '> connecting to love.server...', 200);
+    const l = await typeBootLine(bootContainer, '> authenticating...', 100);
+    l.innerHTML += ' <span class="ok">[OK]</span>';
+    await sleep(200);
+    await typeBootLine(bootContainer, '> opening letter_to_mausbaer.txt', 300);
+
+    const sep = document.createElement('div');
+    sep.className = 'separator';
+    sep.textContent = '─────────────────────────────';
+    bootContainer.appendChild(sep);
+    await sleep(400);
+
+    const letter = document.getElementById('letter-content');
+    const cursor = document.createElement('span');
+    cursor.className = 'cursor';
+    letter.appendChild(cursor);
+
+    // Type letter, cursor stays at end
+    async function typeLetter(text, speed = 30) {
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i] === '\n' ? document.createElement('br') : document.createTextNode(text[i]);
+        letter.insertBefore(char, cursor);
+        const delay = text[i] === ' ' ? speed * 0.5 : speed + (Math.random() * 20 - 10);
+        await sleep(delay);
+      }
+    }
+
+    async function typeAccent(text, speed = 30) {
+      const span = document.createElement('span');
+      span.className = 'accent';
+      letter.insertBefore(span, cursor);
+      for (let i = 0; i < text.length; i++) {
+        span.innerHTML += text[i] === '\n' ? '<br>' : text[i];
+        await sleep(speed);
+      }
+    }
+
+    await typeLetter('Hallo ');
+    await typeAccent('Mausbär');
+    await typeLetter(',\n\n');
+    await sleep(400);
+    await typeLetter('ich sitze hier und denk an dich.\n\n');
+    await sleep(300);
+    await typeLetter('ein date ist viel zu lange her\n');
+    await typeLetter('und steht noch aus... ');
+    await typeAccent('<3');
+    await typeLetter('\n\n');
+    await sleep(400);
+    await typeLetter('also: darf ich dich auf ein\n');
+    await typeLetter('date entführen?\n');
+
+    // ASCII heart
+    await sleep(400);
+    const asciiEl = document.createElement('div');
+    asciiEl.className = 'ascii';
+    asciiEl.style.margin = '12px 0';
+    letter.insertBefore(asciiEl, cursor);
+    const heart = '  .  *  ♡  *  .\n   ♡ . . ♡\n     ♡ ♡\n      ♡';
+    for (let i = 0; i < heart.length; i++) {
+      asciiEl.innerHTML += heart[i] === '\n' ? '<br>' : heart[i];
+      await sleep(30);
+    }
+
+    await sleep(600);
+    await typeLetter('\n> awaiting response...');
+
+    document.getElementById('prompts').classList.add('show');
+  }
+
+  // === No-Button: Error messages ===
+  const errorMessages = [
+    'ERROR: response invalid. try again.',
+    'SYNTAX ERROR: "nein" is not a known keyword.',
+    'FATAL: love.exe cannot compute negativity.',
+    'ACCESS DENIED: this system rejects such answers.',
+    'SEGMENTATION FAULT: heart core dumped.',
+    'ERROR 404: valid response not found. hint: try [y]',
+    'REJECTED: das ist die falsche antwort mein schatz &lt;3',
+    'WARNING: Anna is watching. choose wisely.',
+    'ERROR: nice try. the button below is calling.'
+  ];
+  let errorIndex = 0;
+
+  document.getElementById('noBtn').addEventListener('click', (e) => {
+    e.preventDefault();
+    const log = document.getElementById('errorLog');
+    log.innerHTML = '';
+    const line = document.createElement('div');
+    line.className = 'err-line';
+    line.innerHTML = '&gt; ' + errorMessages[errorIndex % errorMessages.length];
+    log.appendChild(line);
+    errorIndex++;
+
+    // shake the no button a bit
+    const btn = document.getElementById('noBtn');
+    btn.style.transform = 'translateX(-6px)';
+    setTimeout(() => { btn.style.transform = 'translateX(6px)'; }, 60);
+    setTimeout(() => { btn.style.transform = 'translateX(0)'; }, 120);
+  });
+
+  // === Screen navigation ===
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    window.scrollTo(0, 0);
+  }
+
+  async function sayYes() {
+    showScreen('screen-2');
+    await runScreen2();
+  }
+
+  async function runScreen2() {
+    const asciiEl = document.getElementById('ascii-2');
+    const heart = ' ♡♡♡   ♡♡♡\n♡♡♡♡♡ ♡♡♡♡♡\n♡♡♡♡♡♡♡♡♡♡♡\n ♡♡♡♡♡♡♡♡♡\n  ♡♡♡♡♡♡♡\n   ♡♡♡♡♡\n    ♡♡♡\n     ♡';
+    for (let i = 0; i < heart.length; i++) {
+      asciiEl.innerHTML += heart[i] === '\n' ? '<br>' : heart[i];
+      await sleep(20);
+    }
+    await sleep(300);
+    await typeInto(document.getElementById('hl-2'), 'I AM THE HAPPIEST WIFE EVER', 30);
+    await sleep(300);
+    await typeInto(document.getElementById('sub-2'), '> emotion overflow @ line 0x8c1f...', 20);
+    await sleep(400);
+    document.getElementById('prompts-2').classList.add('show');
+  }
+
+  async function showInvitation() {
+    showScreen('screen-3');
+    await typeInto(document.getElementById('hl-3'), 'ich entführ dich.', 40);
+    await sleep(400);
+    document.getElementById('std-box').style.display = 'block';
+    document.getElementById('std-box').style.animation = 'bootUp 0.5s ease both';
+    await sleep(600);
+    document.getElementById('prompts-3').classList.add('show');
+  }
+
+  async function showLocation() {
+    showScreen('screen-4');
+    await typeInto(document.getElementById('hl-4'), 'YOUR CHOICE.', 40);
+    await sleep(400);
+    document.getElementById('choices-4').style.display = 'block';
+    document.getElementById('choices-4').style.animation = 'bootUp 0.5s ease both';
+  }
+
+  async function pickMalaTang() {
+    showScreen('screen-mala');
+    const asciiEl = document.getElementById('ascii-mala');
+    const bowl = '   ~ ~ ~ ~ ~\n  ( 🌶  🌶  🌶 )\n   \\_______/';
+    for (let i = 0; i < bowl.length; i++) {
+      asciiEl.innerHTML += bowl[i] === '\n' ? '<br>' : bowl[i];
+      await sleep(25);
+    }
+    await sleep(300);
+    await typeInto(document.getElementById('hl-mala'), "CAN'T WAIT", 40);
+    await sleep(200);
+    await typeInto(document.getElementById('sub-mala'), '> mala tang, hier kommen wir', 20);
+    await sleep(400);
+    document.getElementById('msg-mala').style.display = 'block';
+    document.getElementById('msg-mala').style.animation = 'bootUp 0.5s ease both';
+    await sleep(600);
+    document.getElementById('send-mala').style.display = 'block';
+  }
+
+  async function pickUzun() {
+    showScreen('screen-uzun');
+    await typeInto(document.getElementById('hl-uzun'), 'kleine frage noch...', 40);
+    await sleep(300);
+    await typeInto(document.getElementById('sub-uzun'), '> should Grünes crash our date? <3', 25);
+    await sleep(400);
+    document.getElementById('prompts-uzun').classList.add('show');
+  }
+
+  async function uzunAlone() {
+    showScreen('screen-uzun-alone');
+    const asciiEl = document.getElementById('ascii-alone');
+    const art = '  ♡ ─ ♡\n us two';
+    for (let i = 0; i < art.length; i++) {
+      asciiEl.innerHTML += art[i] === '\n' ? '<br>' : art[i];
+      await sleep(30);
+    }
+    await sleep(300);
+    await typeInto(document.getElementById('hl-alone'), 'just us two sweethearts', 35);
+    await sleep(200);
+    await typeInto(document.getElementById('sub-alone'), '> uzun. wir zwei. mehr braucht es nicht.', 20);
+    await sleep(400);
+    document.getElementById('msg-alone').style.display = 'block';
+    document.getElementById('msg-alone').style.animation = 'bootUp 0.5s ease both';
+    await sleep(600);
+    document.getElementById('send-alone').style.display = 'block';
+  }
+
+  async function uzunWithGruenes() {
+    showScreen('screen-uzun-gruenes');
+    const asciiEl = document.getElementById('ascii-trio');
+    const art = ' ♡ ─ ♡ ─ 🌿\n us three';
+    for (let i = 0; i < art.length; i++) {
+      asciiEl.innerHTML += art[i] === '\n' ? '<br>' : art[i];
+      await sleep(30);
+    }
+    await sleep(300);
+    await typeInto(document.getElementById('hl-trio'), 'us three sweethearts', 35);
+    await sleep(200);
+    await typeInto(document.getElementById('sub-trio'), '> ich slide in seine DMs...', 25);
+    await sleep(400);
+    document.getElementById('msg-trio').style.display = 'block';
+    document.getElementById('msg-trio').style.animation = 'bootUp 0.5s ease both';
+    await sleep(600);
+    document.getElementById('send-trio').style.display = 'block';
+  }
+
+  // === Mails ===
+  function sendMailMala() {
+    const subject = encodeURIComponent('Date-Night ist fix — Mala Tang!');
+    const body = encodeURIComponent(
+      'Hi Schatz,\n\n' +
+      'Date bestätigt!\n\n' +
+      '> Wann: Mittwoch, 23. September\n' +
+      '> Wo: Mala Tang (Karlsruhe)\n' +
+      '> Spice: so schwer du willst\n\n' +
+      'Kann es kaum erwarten.\n\n' +
+      '<3'
+    );
+    window.location.href = `mailto:annafrolov@hotmail.de?subject=${subject}&body=${body}`;
+  }
+
+  function sendMailUzunAlone() {
+    const subject = encodeURIComponent('Date-Night ist fix — Uzun, just us two');
+    const body = encodeURIComponent(
+      'Hi Schatz,\n\n' +
+      'Date bestätigt!\n\n' +
+      '> Wann: Mittwoch, 23. September\n' +
+      '> Wo: Uzun (Monnem)\n' +
+      '> Guests: just us two sweethearts\n\n' +
+      'Kann es kaum erwarten.\n\n' +
+      '<3'
+    );
+    window.location.href = `mailto:annafrolov@hotmail.de?subject=${subject}&body=${body}`;
+  }
+
+  function sendMailUzunGruenes() {
+    const subject = encodeURIComponent('Date-Night ist fix — Uzun mit Grünes');
+    const body = encodeURIComponent(
+      'Hi Schatz,\n\n' +
+      'Date bestätigt!\n\n' +
+      '> Wann: Mittwoch, 23. September\n' +
+      '> Wo: Uzun (Monnem)\n' +
+      '> Guests: us three sweethearts (mit Grünes)\n\n' +
+      'PS: Du sagst Grünes Bescheid <3\n\n' +
+      '<3'
+    );
+    window.location.href = `mailto:annafrolov@hotmail.de?subject=${subject}&body=${body}`;
+  }
+
+  // Start
+  window.addEventListener('load', () => {
+    setTimeout(runScreen1, 400);
+  });
+</script>
+
+</body>
+</html>
